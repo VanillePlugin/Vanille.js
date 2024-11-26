@@ -29,7 +29,7 @@
 			namespace: null,
 			name: null,
 			lang: null,
-			urls: {},
+			linking: {},
 			inputs: {},
 			strings: {},
 			overrided: true
@@ -121,7 +121,6 @@
 			if (!action) {
 				if (type == 'FORM') {
 					action = element.find('input[name="action"]').val()
-						|| element.attr('action')
 						|| element.data('action');
 
 				} else {
@@ -269,7 +268,6 @@
 			if (!action) {
 				if (type == 'FORM') {
 					action = element.find('input[name="action"]').val()
-						|| element.attr('action')
 						|| element.data('action');
 
 				} else {
@@ -1028,6 +1026,7 @@
 						const action = form.attr('action')
 							|| form.data('action')
 							|| window.location.pathname;
+
 						const method = form.attr('method')
 							|| form.data('method')
 							|| 'POST';
@@ -1037,7 +1036,6 @@
 						data = self.toObject(data);
 
 						const url = self.getBaseUrl(action, true);
-
 						const args = { url: url, type: method, data: data };
 
 						(plugin.restful == true)
@@ -1681,81 +1679,84 @@
 			}
 		}
 
-		// doNavToggle (mobile)
-		VanillePlugin.doNavToggle = function (selector, toggleSelector, offset) {
+		// doNavToggle
+		VanillePlugin.doNavToggle = function (nav, offset) {
 
-			selector = selector || '#main-nav';
-			toggleSelector = toggleSelector || '#navbarResponsive .nav-link';
+			nav = nav || '#main-nav';
 			offset = offset || 50;
+			const navbar = $(nav);
 
-			const element = $(selector);
-			const toggleElement = $(toggleSelector);
-			const toggler = $('.navbar-toggler');
+			if (navbar.length) {
+				$('body').scrollspy({
+					target: nav,
+					offset: offset
+				});
+			}
 
-			if (!element.length || !toggleElement.length || !toggler.length) return;
+			const toggle = $('.navbar-toggler');
+			const item = $('#mobile-nav .nav-link');
 
-			$('body').scrollspy({
-				target: selector,
-				offset: offset
-			});
-
-			toggleElement.on('click', function () {
-				if (toggler.css('display') !== 'none') {
-					toggler.click();
+			item.on('click', function () {
+				if (toggle.css('display') !== 'none') {
+					toggle.click();
 				}
 			});
 
 		}
 
-		// doCookie
-		VanillePlugin.doCookie = function () {
+		// cookie
+		VanillePlugin.cookie = function (display = true) {
 
-			if (plugin.modules.cookies !== 'on') return;
+			if (!display) return;
+
 			const name = window.location.hostname;
 			if (document.cookie.includes(name)) return;
 
-			const strings = self.getString();
-			const str = strings.cookie;
-
-			const title = str.title;
-			const message = str.message;
-			const accept = str.accept;
-			const decline = str.decline;
-			const more = strings.more;
+			const strings = self.getString('cookie');
+			const more = self.getString('more');
+			const title = strings.title || 'title';
+			const message = strings.message || 'message';
+			const accept = strings.accept || 'accept';
+			const decline = strings.decline || 'decline';
 
 			const link = self.getBaseUrl(self.getLinking('privacy'));
 			const close = true;
 			const icon = true;
 
-			let box = '<div class="cookie-wrapper">';
-			box += '<div class="cookie-header">';
+			let output = `
+			<div class="cookie-wrapper">
+			<div class="cookie-header">
+			`;
 
 			if (icon === true) {
-				box += '<span class="cookie-icon"></span>';
+				output += '<span class="cookie-icon"></span>';
 			}
 
-			box += '<span class="cookie-title">' + title + '</span>';
-			box += '</div>';
-			box += '<div class="cookie-message">';
-			box += '<p>' + message + '.';
+			output += `
+			<span class="cookie-title">${title}</span>
+			</div>
+			<div class="cookie-message">
+			<p>${message}.
+			`;
 
 			if (link) {
-				box += '<br><a href="' + link + '" rel="nofollow">' + more + '</a>';
+				output += `<br><a href="${link}" rel="nofollow">${more}</a>`;
 			}
 
-			box += '</p>';
-			box += '</div>';
-			box += '<div class="cookie-action">';
-			box += '<button class="cookie-button" data-action="accept">' + accept + '</button>';
+			output += `
+			</p>
+			</div>
+			<div class="cookie-action">
+			<button class="cookie-button" data-action="accept">${accept}</button>
+			`;
 
 			if (close === true) {
-				box += '<button class="cookie-button" data-action="decline">' + decline + '</button>';
+				output += `<button class="cookie-button" data-action="decline">${decline}</button>`;
 			}
 
-			box += '</div>';
-			box += '</div>';
+			output += '</div></div>';
 
-			$('body').append(box);
+			$('body').append(output);
 			const cookieBox = $('.cookie-wrapper');
 			const cookieButtons = $('.cookie-button');
 			cookieBox.addClass('show');
@@ -1771,17 +1772,12 @@
 			});
 		}
 
-		// doClick
-		VanillePlugin.doClick = function () {
+		// click
+		VanillePlugin.click = function () {
 
 			$('[data-target]').on('click', function (e) {
 
 				e.preventDefault();
-
-				const toggler = $('.navbar-toggler');
-				if (!toggler.hasClass('collapsed')) {
-					toggler.trigger('click');
-				}
 
 				const element = $(this);
 				const link = element.attr('data-target');
@@ -1859,7 +1855,7 @@
 
 		// getLinking
 		VanillePlugin.getLinking = function (item) {
-			const urls = plugin.urls;
+			const urls = plugin.linking;
 			if (item !== undefined) {
 				return urls[item] ?? null;
 			}
