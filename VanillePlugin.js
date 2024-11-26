@@ -14,17 +14,24 @@
 		const restful = plugin.restful || 0;
 		plugin.restful = (parseInt(restful) === 1) ? true : false;
 
+		const debug = plugin.debug || 0;
+		plugin.debug = (parseInt(debug) === 1) ? true : false;
+
 		// Extend plugin
 		plugin = $.extend({
 			baseUrl: '/',
+			assetUrl: '/',
 			ajaxUrl: '/',
 			restUrl: '/',
-			namespace: false,
-			name: false,
-			language: false,
+			adminUrl: '/',
+			loginUrl: '/',
+			logoutUrl: '/',
+			namespace: null,
+			name: null,
+			lang: null,
+			urls: {},
 			inputs: {},
 			strings: {},
-			urls: {},
 			overrided: true
 		}, plugin);
 
@@ -34,6 +41,7 @@
 	// Initialize plugin
 	VanillePlugin.init = function (plugin, options) {
 
+		// Define self
 		const self = this;
 
 		// Define global options
@@ -46,12 +54,23 @@
 
 		// Extend options
 		options = $.extend({
-			color: '#000'
+			color: '#000',
+			submission: 'inter',
 		}, options);
+
+		// Form submission
+		if (options.submission == 'inter'
+			&& options.submission !== 'exter') {
+			$('form').on('submit', function (e) {
+				e.preventDefault();
+				self.doLog('Default submit disabled');
+			});
+		}
 
 		// Override empty <a> behavior
 		$('a[href="#"]').click(function (e) {
 			e.preventDefault();
+			self.doLog('Default click disabled');
 		});
 
 		// Ajax request
@@ -84,9 +103,7 @@
 			// Extend args
 			args = $.extend({
 				data: {},
-				action: false,
-				nonce: false,
-				files: false, // Array
+				files: [], // Array
 				silent: false,
 				loading: true,
 				successCb: function () { },
@@ -100,34 +117,40 @@
 			}
 
 			// Set action
-			let action = args.data.action || args.action;
+			let action = args.data.action || null;
 			if (!action) {
 				if (type == 'FORM') {
-					action = element.find('input[name="action"]').val();
+					action = element.find('input[name="action"]').val()
+						|| element.attr('action')
+						|| element.data('action');
 
 				} else {
-					action = element.attr('data-action');
+					action = element.data('action');
 				}
 			}
 
-			// Push action
-			args.data.action = self.applyNamesapce(action);
+			// Format action
+			action = self.applyNamesapce(action);
+			if (action) {
+				args.data['--action'] = action;
+			}
 
-			// Set nonce
-			let nonce = args.data.nonce || args.nonce;
-			if (!nonce) {
+			// Set token
+			let token = args.data.token || null;
+			if (!token) {
 				if (type == 'FORM') {
-					nonce = element.find('input[name="nonce"]').val();
+					token = element.find('input[name="token"]').val()
+						|| element.data('token');
 
 				} else {
 					const parent = element.parent('div');
-					const attr = 'data-nonce';
-					nonce = parent.find(`[${attr}]`).attr(attr) || element.attr(attr);
+					token = parent.find('[data-token]').data('token')
+						|| element.data('token');
 				}
 			}
 
-			// Push nonce
-			args.data.nonce = nonce;
+			// Format token
+			args.data['--token'] = token || plugin.token;
 
 			// Extend callbacks
 			args = $.extend({
@@ -136,21 +159,26 @@
 					args.successCb(response);
 
 					// Message
-					const silent = response.content?.silent || args.silent;
-					if (response.message && silent === false) {
-						self.notify(response.message, response.status);
+					const silent = response?.content?.silent || args.silent;
+					const message = response?.message || null;
+					const status = response?.status || 'info';
+
+					if (message && silent === false) {
+						self.notify(message, status);
 					}
 
 					// Reload
-					const reload = response.content?.reload || self.reloading;
+					const reload = response?.content?.reload || self.reloading;
 					if (reload === true) {
 						self.reload(1500);
+						return;
 					}
 
 					// Redirect
-					const redirect = response.content?.redirect || false;
-					if (redirect === true) {
-						redirect(response.content.redirect);
+					const redirect = response?.content?.redirect || null;
+					if (typeof redirect == 'string') {
+						self.redirect(redirect);
+						return;
 					}
 
 				},
@@ -159,7 +187,8 @@
 					args.errorCb(error);
 
 					if (args.silent === false) {
-						self.notifyMore(plugin.strings.global.error, error, 'error', 3000);
+						const message = self.getString('error') || 'error';
+						self.notifyMore(message, error, 'error');
 					}
 
 				},
@@ -222,9 +251,6 @@
 				method: 'POST',
 				headers: {},
 				data: {},
-				nonce: false,
-				endpoint: false,
-				root: `${plugin.namespace}/v1/`,
 				timeout: plugin.timeout,
 				silent: false,
 				loading: true,
@@ -238,41 +264,47 @@
 				self.loading(element);
 			}
 
-			// Set nonce
-			let nonce = args.data.nonce || args.nonce;
-			if (!nonce) {
+			// Set action (path)
+			let action = args.data.action || null;
+			if (!action) {
 				if (type == 'FORM') {
-					nonce = element.find('input[name="rest-token"]').val();
+					action = element.find('input[name="action"]').val()
+						|| element.attr('action')
+						|| element.data('action');
+
+				} else {
+					action = element.data('action');
+				}
+			}
+
+			// Format action
+			action = self.applyNamesapce(action) || '';
+
+			// Set token (X-Token)
+			let token = args.data.token || null;
+			if (!token) {
+				if (type == 'FORM') {
+					token = element.find('input[name="token"]').val()
+						|| element.data('token');
 
 				} else {
 					const parent = element.parent('div');
-					const attr = 'data-token';
-					nonce = parent.find(`[${attr}]`).attr(attr) || element.attr(attr);
+					token = parent.find('[data-token]').data('token')
+						|| element.data('token');
 				}
 			}
+
+			// Format token
+			token = token || plugin.token;
 
 			// Extend headers
 			const headers = $.extend({
 				'Content-Type': 'application/json',
-				'X-WP-Nonce': nonce
+				'X-Token': token
 			}, args.headers);
 
-			// Set endpoint
-			let endpoint = args.endpoint;
-			if (!endpoint) {
-				if (type == 'FORM') {
-					endpoint = element.find('input[name="endpoint"]').val();
-
-				} else {
-					const parent = element.parent('div');
-					const attr = 'data-endpoint';
-					endpoint = parent.find(`[${attr}]`).attr(attr) || element.attr(attr);
-				}
-			}
-			endpoint = endpoint || 'default';
-
 			// Set url
-			const url = `${plugin.restUrl}${args.root}${endpoint}`;
+			const url = self.formatUrl(`${plugin.restUrl}/${action}/`);
 
 			// Fetch response
 			self.fetch(url, {
@@ -280,52 +312,56 @@
 				method: args.method,
 				signal: AbortSignal.timeout(args.timeout),
 				body: JSON.stringify(args.data)
-			})
-				.then(response => {
 
-					if (!response.ok) {
-						throw new Error(response.statusText);
-					}
-					return response.json();
+			}).then(response => {
 
-				})
-				.then(response => {
+				if (!response.ok) {
+					throw new Error(response.statusText);
+				}
+				return response.json();
 
-					args.successCb(response);
+			}).then(response => {
 
-					// Message
-					const silent = response.content?.silent || args.silent;
-					if (response.message && silent === false) {
-						self.notify(response.message, response.status);
-					}
+				args.successCb(response);
 
-					// Reload
-					const reload = response.content?.reload || self.reloading;
-					if (reload === true) {
-						self.reload(1500);
-					}
+				// Message
+				const silent = response?.content?.silent || args.silent;
+				const message = response?.message || null;
+				const status = response?.status || 'info';
 
-					// Redirect
-					const redirect = response.content?.redirect || false;
-					if (redirect === true) {
-						redirect(response.content.redirect);
-					}
+				if (message && silent === false) {
+					self.notify(message, status);
+				}
 
-				})
-				.catch(error => {
+				// Reload
+				const reload = response?.content?.reload || self.reloading;
+				if (reload === true) {
+					self.reload(1500);
+					return;
+				}
 
-					args.errorCb(error.message);
+				// Redirect
+				const redirect = response?.content?.redirect || null;
+				if (typeof redirect == 'string') {
+					self.redirect(redirect);
+					return;
+				}
 
-					if (args.silent === false) {
-						self.notifyMore(plugin.strings.global.error, error.message, 'error', 3000);
-					}
+			}).catch(error => {
 
-				}).finally(() => {
+				args.errorCb(error.message);
 
-					args.completeCb();
-					self.unloading(element);
+				if (args.silent === false) {
+					const message = self.getString('error') || 'error';
+					self.notifyMore(message, error, 'error');
+				}
 
-				});
+			}).finally(() => {
+
+				args.completeCb();
+				self.unloading(element);
+
+			});
 
 		};
 
@@ -385,7 +421,7 @@
 			args = $.extend({
 				action: 'save-hooks',
 				endpoint: 'hooks',
-				nonce: false,
+				token: false,
 				silent: true,
 				loading: false
 			}, args);
@@ -397,8 +433,8 @@
 				self.doFetch(form, args);
 
 			} else {
-				const nonce = form.find('input[name="hook-token"]').val();
-				args.nonce = nonce;
+				const token = form.find('input[name="hook-token"]').val();
+				args.token = token;
 				self.doAjax(form, args);
 			}
 
@@ -409,7 +445,7 @@
 			const type = element?.prop('tagName');
 			if (!type) return;
 			if (type == 'FORM') {
-				return element.find('button[type="submit"]').hasClass('icon-loading');
+				return element.find('[type="submit"]').hasClass('icon-loading');
 			}
 			return element.hasClass('icon-loading');
 		}
@@ -421,7 +457,11 @@
 			if (!type) return;
 
 			if (type == 'FORM') {
-				element.find('button[type="submit"]').removeClass('icon-loading');
+				const button = element.find('[type="submit"]');
+				if (button.length) {
+					button.removeClass('icon-loading');
+					button.prop('disabled', false);
+				}
 
 			} else {
 				element.removeClass('icon-loading');
@@ -436,7 +476,11 @@
 			if (!type) return;
 
 			if (type == 'FORM') {
-				element.find('button[type="submit"]').addClass('icon-loading');
+				const button = element.find('[type="submit"]');
+				if (button.length) {
+					button.addClass('icon-loading');
+					button.prop('disabled', true);
+				}
 
 			} else {
 				element.addClass('icon-loading');
@@ -447,14 +491,14 @@
 		// popup
 		VanillePlugin.popup = function (title, type, html) {
 
+			if (typeof swal === 'undefined') {
+				self.doLog('Missing popup library (SWAL)');
+				return;
+			}
+
 			title = title || '';
 			html = html || '';
 			type = type || 'success';
-
-			if (!swal) {
-				alert(title);
-				return;
-			}
 
 			swal.fire({
 				icon: type,
@@ -478,16 +522,14 @@
 
 			message = message || false;
 			type = type || 'success';
-			timeout = (timeout !== undefined) ? timeout : 5000;
+			timeout = (timeout !== undefined) ? timeout : 3000;
 
 			const selector = '.toast.--notification';
-			const iconDefault = 'bi-check-circle';
-			let icon = iconDefault;
-
 			const body = $('body');
 			let toast = $(selector);
 			let p = toast.find('.toast-body p');
 			let i = toast.find('.toast-body i');
+			let icon = 'bi-check-circle';
 
 			if (type == 'error') {
 				icon = 'bi-x-circle';
@@ -498,6 +540,8 @@
 			} else if (type == 'info') {
 				icon = 'bi-question-circle';
 			}
+
+			icon = `bi ${icon}`;
 
 			if (!toast.length) {
 
@@ -527,7 +571,7 @@
 
 				output += `
                 <div class="toast-body">
-                    <i class="bi ${icon}"></i>
+                    <i class="${icon}"></i>
                     <p>${message}</p>
                 </div>
                 `;
@@ -551,7 +595,7 @@
 			} else {
 				toast.attr('data-bs-delay', timeout);
 				toast.attr('data-type', type);
-				i.removeClass(iconDefault).addClass(icon);
+				i.attr('class', '').addClass(icon);
 				p.html(message);
 			}
 
@@ -580,16 +624,20 @@
 		// confirm
 		VanillePlugin.confirm = function (args) {
 
+			if (typeof $.confirm !== 'function') {
+				self.doLog('Missing confirm library');
+				return;
+			}
+
 			// extend args
 			args = $.extend({
-				element: false,
-				message: false,
-				confirmCb: false,
-				cancelCb: false
+				element: null,
+				message: null,
+				confirmCb: null,
+				cancelCb: null
 			}, args);
 
 			const element = args.element;
-			const message = args.content || 'Continue?';
 
 			// default confirm callback
 			const confirmCb = args.confirmCb || function () { };
@@ -602,18 +650,24 @@
 				return;
 			};
 
+			const strings = self.getString();
+			const message = args.message || strings.confirm || '';
+			const title = strings.confirmation || 'confirmation';
+			const yes = strings.yes || 'yes';
+			const cancel = strings.cancel || 'cancel';
+
 			$.confirm({
-				title: plugin.strings.global.confirmation,
+				title: title,
 				content: message,
 				animation: 'none',
 				buttons: {
 					confirm: {
-						text: plugin.strings.global.yes,
+						text: yes,
 						btnClass: 'btn-primary',
 						action: confirmCb
 					},
 					cancel: {
-						text: plugin.strings.global.cancel,
+						text: cancel,
 						action: cancelCb
 					}
 				}
@@ -623,6 +677,7 @@
 
 		// wait
 		VanillePlugin.wait = async function (callback, timer) {
+			timer = timer || 500;
 			await new Promise(resolve => setTimeout(resolve, timer));
 			if (typeof callback === 'function') {
 				callback();
@@ -680,118 +735,6 @@
 			return files;
 		}
 
-		// toDate
-		VanillePlugin.toDate = function (string) {
-
-			const from = string.split('/');
-			const to = new Date(from[2], from[1] - 1, from[0]);
-
-			const d = ('0' + to.getDate()).slice(-2);
-			const m = ('0' + (to.getMonth() + 1)).slice(-2);
-			const y = to.getFullYear();
-
-			return `${y}-${m}-${d}`;
-
-		}
-
-		// isValidUrl
-		VanillePlugin.isValidUrl = function (url) {
-			const pattern = /^(https?:)?\/\//i;
-			return pattern.test(url);
-		}
-
-		// isProtocol
-		VanillePlugin.isProtocol = function (url, protocol) {
-			for (let i = 0; i < protocol.length; i++) {
-				if (url.indexOf(protocol[i] + ':') !== -1) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		// capitalize
-		VanillePlugin.capitalize = function (string) {
-			return string.charAt(0).toUpperCase() + string.slice(1);
-		}
-
-		// toBool
-		VanillePlugin.toBool = function (val) {
-			return "bool|" + (val ? 1 : 0);
-		}
-
-		// toInt
-		VanillePlugin.toInt = function (val) {
-			return "int|" + parseInt(val);
-		}
-
-		// toFloat
-		VanillePlugin.toFloat = function (val) {
-			return "float|" + parseFloat(val);
-		}
-
-		// toStr
-		VanillePlugin.toStr = function (val) {
-			if (val === undefined || val === null) {
-				val = '';
-			}
-			return val.toString();
-		}
-
-		// parseObject
-		VanillePlugin.parseObject = function (obj) {
-			let data = {};
-			if (typeof obj === 'object') {
-				$.each(obj, (item, i) => {
-					const key = Object.keys(item)[0];
-					data[key] = item[key];
-				});
-			}
-			return data;
-		}
-
-		// isEmpty
-		VanillePlugin.isEmpty = function (item) {
-			if (typeof item === 'object') {
-				return (Object.values(item).length === 0);
-			}
-			if (typeof item === 'array') {
-				return (item.length === 0);
-			}
-			return (item === '');
-		}
-
-		// splitString
-		VanillePlugin.splitString = function (string, max, end) {
-			if (!typeof string === 'string') {
-				return string;
-			}
-			end = end || '...';
-			max = max || 0;
-			const split = string.substring(0, max) + add;
-			return (string.length > max) ? split : string
-		}
-
-		// stripString
-		VanillePlugin.stripString = function (string) {
-			if (!typeof string === 'string') {
-				return string;
-			}
-			return string.replace(/<\/?[^>]+(>|$)/g, '');
-		}
-
-		// Copy clipboard (Legacy)
-		VanillePlugin.copyClipboardLegacy = async function (text) {
-			text = (text !== undefined) ? text : '';
-			const t = $('<input>');
-			$('body').append(t);
-			t.val(text).select();
-			if (document.execCommand('copy')) {
-				self.notify(plugin.strings.shortcode.copied);
-			}
-			t.remove();
-		}
-
 		// Copy clipboard
 		VanillePlugin.copyClipboard = async function (text) {
 			if (navigator.clipboard) {
@@ -839,24 +782,37 @@
 		}
 
 		// Init code editor
-		VanillePlugin.initCodeEditor = function (selector) {
+		VanillePlugin.initCodeEditor = function (selector, args) {
+
+			if (typeof CodeMirror === 'undefined') {
+				self.doLog('Missing editor library (CodeMirror)');
+				return;
+			}
 
 			const textarea = document.querySelector(selector);
 			if (!textarea) return;
 
-			const instance = wp.CodeMirror;
-			if (!instance) return;
-
-			const mode = textarea.getAttribute('mode') || 'html';
-			const editor = instance.fromTextArea(textarea, {
+			// Extend args
+			const mode = textarea.getAttribute('data-mode') || 'html';
+			const theme = textarea.getAttribute('data-theme') || 'monokai';
+			args = $.extend({
+				mode: mode,
+				theme: theme,
 				lineNumbers: true,
-				indentWithTabs: true,
-				tabSize: 2,
 				autoRefresh: true,
 				autofocus: true,
-				mode: mode,
-				scrollbarStyle: 'simple'
-			});
+				autoCloseTags: true,
+				autoCloseBrackets: true,
+				matchBrackets: true,
+				indentWithTabs: true,
+				indentUnit: 2,
+				tabSize: 2,
+				scrollbarStyle: 'simple',
+				placeholder: 'HTML code'
+			}, args);
+
+			const editor = CodeMirror.fromTextArea(textarea, args);
+			if (!editor) return;
 
 			editor.on('change', function () {
 				textarea.value = editor.getValue();
@@ -866,18 +822,28 @@
 
 		// Check duplication
 		VanillePlugin.isDuplicated = function () {
-			if (window.IsDuplicate()) {
-				self.notify(plugin.strings.global.opened, 'warning', 10000);
+
+			if (typeof window.IsDuplicate !== 'function') {
+				self.doLog('Missing duplicated window library');
+				return;
 			}
+
+			if (window.IsDuplicate()) {
+				const message = self.getString('opened') || 'opened';
+				self.notify(message, 'warning', 10000);
+			}
+
 			return this;
 		}
 
 		// Check connection
-		VanillePlugin.isConnected = function (online = true) {
-			if (online) {
-				self.online();
-			}
-			self.offline();
+		VanillePlugin.isConnected = function (callback) {
+			$(window).on('online', function () {
+				self.online(callback);
+			});
+			$(window).on('offline', function () {
+				self.offline(callback);
+			});
 		}
 
 		// Reload
@@ -889,11 +855,12 @@
 		}
 
 		// Redirect
-		VanillePlugin.redirect = function (url) {
+		VanillePlugin.redirect = function (url, time) {
 			if (typeof url === 'string') {
-				setTimeout(function () {
-					window.location.href = url;
-				}, 1000);
+				time = time || 1000;
+				self.wait(() => {
+					self.goTo(url);
+				}, time);
 			}
 		}
 
@@ -926,8 +893,12 @@
 					},
 					error: function (error) {
 
-						const title = plugin.strings.activation.error;
-						const message = plugin.strings.global.error;
+						const strings = self.getString('activation');
+						const title = strings.error || 'activation';
+
+						const globalStrings = self.getString('global');
+						const message = globalStrings.error || 'error';
+
 						self.popupMore(title, message, 'error');
 
 					}
@@ -947,7 +918,9 @@
 				const files = self.parseFiles(form);
 				if (!files.length) {
 					self.unloading(form);
-					self.notify(plugin.strings.upload.error, 'warning');
+					const strings = self.getString('upload');
+					const message = strings.error || 'error';
+					self.notify(message, 'warning');
 					return;
 				}
 
@@ -973,28 +946,27 @@
 		// saveSettings
 		VanillePlugin.saveSettings = function (form) {
 
+			form = form || $('form[name="settings"]');
+			if (!form.length || !self.isForm(form)) {
+				self.doLog('Missing settings form');
+				return;
+			}
+
 			form.on('submit', function (e) {
 
 				e.preventDefault();
 				if (self.isLoading(form)) return;
 
 				const args = {
-					data: {
-						settings: self.parseInputs('settings', form),
-						advanced: self.parseInputs('advanced', form)
-					},
+					data: self.parseInputs('settings', form),
 					successCb: function (response) {
 						self.saveHooks('settings', form);
-						self.saveHooks('advanced', form);
 					}
 				};
 
-				if (plugin.restful == true) {
-					self.doFetch(form, args);
-
-				} else {
-					self.doAjax(form, args);
-				}
+				(plugin.restful == true)
+					? self.doFetch(form, args)
+					: self.doAjax(form, args);
 
 			});
 
@@ -1002,6 +974,11 @@
 
 		// purgeCache
 		VanillePlugin.purgeCache = function (element) {
+
+			if (!element.length) {
+				self.doLog('Missing element (purge cache)');
+				return;
+			}
 
 			element.on('click', function (e) {
 
@@ -1023,8 +1000,143 @@
 
 		}
 
+		// update
+		VanillePlugin.update = function () {
+
+			const page = $('body').data('page') || null;
+			if (!page) {
+				self.doLog(`Page '${page}' not found, Nothing to update`);
+				return;
+			}
+
+			const form = $(`form[name="${page}"]`);
+			if (!form.length) {
+				self.doLog(`Form '${page}' not found`);
+				return;
+			}
+
+			form.on('submit', function (e) {
+
+				e.preventDefault();
+
+				const form = $(this);
+				if (self.isLoading(form)) return;
+
+				self.confirm({
+					confirmCb: function () {
+
+						const action = form.attr('action')
+							|| form.data('action')
+							|| window.location.pathname;
+						const method = form.attr('method')
+							|| form.data('method')
+							|| 'POST';
+
+						let data = form.serializeArray();
+						data.push({ name: '--token', value: plugin.token });
+						data = self.toObject(data);
+
+						const url = self.getBaseUrl(action, true);
+
+						const args = { url: url, type: method, data: data };
+
+						(plugin.restful == true)
+							? self.doFetch(form, args)
+							: self.doAjax(form, args);
+
+					}
+
+				});
+
+			});
+		}
+
+		// login
+		VanillePlugin.login = function (selector) {
+
+			selector = selector || 'form[name="login"]';
+			const form = $(selector);
+
+			if (!form.length || !self.isForm(form)) {
+				self.doLog('Missing login form');
+				return;
+			}
+
+			form.on('submit', function (e) {
+
+				e.preventDefault();
+				if (self.isLoading(form)) return;
+
+				const args = {
+					url: plugin.loginUrl,
+					data: {
+						"user": form.find('input[name="user"]').val(),
+						"pswd": form.find('input[name="pswd"]').val()
+					},
+					success: function (response) {
+
+						const message = response?.message || 'error';
+						const status = response?.status || 'error';
+
+						self.notify(message, status);
+
+						if (status == 'success') {
+							self.wait(() => {
+								self.goTo(plugin.adminUrl);
+							}, 1000);
+						}
+
+					},
+					error: function (xhr) {
+
+						const message = xhr?.responseJSON?.message || 'error';
+						const status = xhr?.responseJSON?.status || 'error';
+
+						self.notify(message, status);
+
+					}
+				};
+
+				(plugin.restful == true)
+					? self.doFetch(form, args)
+					: self.doAjax(form, args);
+
+			});
+		}
+
+		// logout
+		VanillePlugin.logout = function (selector) {
+
+			selector = selector || '.logout';
+			const element = $(selector);
+
+			if (!element.length) {
+				self.doLog('Missing element (logout)');
+				return;
+			}
+
+			let url = `${plugin.logoutUrl}?--token=${plugin.token}`;
+			url = self.getBaseUrl(url);
+
+			element.on('click', function (e) {
+
+				e.preventDefault();
+				$('body').trigger('click');
+				self.notify(self.getString('logout'), 'warning');
+				self.wait(() => {
+					self.goTo(url);
+				}, 1000);
+
+			});
+		}
+
 		// initTooltip
 		VanillePlugin.initTooltip = function (args) {
+
+			if (typeof $.tooltipster === 'undefined') {
+				self.doLog('Missing tooltipster library');
+				return;
+			}
 
 			args = $.extend({
 				item: 'tooltip',
@@ -1045,8 +1157,12 @@
 
 		}
 
-		// initSwitch
-		VanillePlugin.initSwitch = function (selector) {
+		// initSwitcher
+		VanillePlugin.initSwitcher = function (selector) {
+			if (typeof $.switcher !== 'function') {
+				self.doLog('Missing switcher library');
+				return;
+			}
 			$(selector).switcher();
 		}
 
@@ -1057,6 +1173,11 @@
 
 		// initColorPicker
 		VanillePlugin.initColorPicker = function (selector, args) {
+
+			if (typeof $.colorPick !== 'function') {
+				self.doLog('Missing color picker library');
+				return;
+			}
 
 			// Extend args
 			args = $.extend({
@@ -1097,6 +1218,11 @@
 
 		// modal
 		VanillePlugin.modal = function (selector, args) {
+
+			if (typeof $.modal !== 'function') {
+				self.doLog('Missing modal library');
+				return;
+			}
 
 			// Dynamic selector
 			if (!selector) {
@@ -1202,7 +1328,7 @@
 				if (!file) return;
 
 				// Set response strings
-				const strings = plugin.strings.upload;
+				const strings = self.getString('upload');
 
 				// Check file size
 				if (file.size > args.size) {
@@ -1362,40 +1488,42 @@
 
 		// applyNamesapce
 		VanillePlugin.applyNamesapce = function (value) {
-			value = value || 'global';
-			return plugin.namespace + '-' + value;
+			if (plugin.namespace) {
+				value = `${plugin.namespace}-${value}`;
+			}
+			return value;
 		}
 
 		// online
 		VanillePlugin.online = function (callback) {
-			$(window).on('online', function () {
-				if (typeof callback === 'function') {
-					callback();
+			if (typeof callback === 'function') {
+				callback();
 
-				} else {
-					self.notify(plugin.strings.online, 'success', 3000);
-				}
-			});
+			} else {
+				const message = self.getString('online') || 'online';
+				self.notify(message, 'success');
+			}
 		}
 
 		// offline
 		VanillePlugin.offline = function (callback) {
-			$(window).on('offline', function () {
-				if (typeof callback === 'function') {
-					callback();
+			if (typeof callback === 'function') {
+				callback();
 
-				} else {
-					self.notify(plugin.strings.offline, 'error', 0);
-				}
-			});
+			} else {
+				const message = self.getString('offline') || 'offline';
+				self.notify(message, 'error', 0);
+			}
 		}
 
 		// serviceWorker
-		VanillePlugin.serviceWorker = function (path) {
+		VanillePlugin.serviceWorker = function (file) {
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register(`${plugin.baseUrl}${path}`)
-					.then(reg => console.log(`Service worker registered : ${reg.scope}`))
-					.catch(error => console.log(`Service worker registration failed : ${error}`));
+				file = file || '/public/assets/admin/js/service-worker.js';
+				file = self.getBaseUrl(file);
+				navigator.serviceWorker.register(file)
+					.then(reg => self.doLog(`Service worker registered : ${reg.scope}`))
+					.catch(error => self.doLog(`Service worker registration failed : ${error}`));
 			}
 		}
 
@@ -1537,47 +1665,43 @@
 			});
 		};
 
-		// doLogout
-		VanillePlugin.doLogout = function () {
-			$('.logout').on('click', function (e) {
-				e.preventDefault();
-				$('body').trigger('click');
-				self.notify(self.getString('logout'), 'warning');
-				setTimeout(function () {
-					window.location.href = Gen.baseUrl + '/admin/logout/h/?--token=' + Gen.token;
-				}, 500);
-			});
-		}
+		// doNavbarScroll
+		VanillePlugin.doNavbarScroll = function (selector, navbarClass) {
 
-		// doNavbar
-		VanillePlugin.doNavbar = function () {
-			const nav = $('#main-nav');
-			if (!nav.length) return;
+			selector = selector || '#main-nav';
+			navbarClass = navbarClass || 'navbar-shrink';
+
+			const element = $(selector);
+			if (!element.length) return;
+
 			if ($(window).scrollTop() === 0) {
-				nav.removeClass('navbar-shrink');
+				element.removeClass(navbarClass);
 			} else {
-				nav.addClass('navbar-shrink');
+				element.addClass(navbarClass);
 			}
 		}
 
-		// doToggle (mobile)
-		VanillePlugin.doToggle = function () {
+		// doNavToggle (mobile)
+		VanillePlugin.doNavToggle = function (selector, toggleSelector, offset) {
 
-			const navId = '#main-nav';
-			const nav = $(navId);
-			if (nav.length) {
-				$('body').scrollspy({
-					target: navId,
-					offset: 50
-				});
-			}
+			selector = selector || '#main-nav';
+			toggleSelector = toggleSelector || '#navbarResponsive .nav-link';
+			offset = offset || 50;
 
-			const toggle = $('.navbar-toggler');
-			const item = $('#navbarResponsive .nav-link');
+			const element = $(selector);
+			const toggleElement = $(toggleSelector);
+			const toggler = $('.navbar-toggler');
 
-			item.on('click', function () {
-				if (toggle.css('display') !== 'none') {
-					toggle.click();
+			if (!element.length || !toggleElement.length || !toggler.length) return;
+
+			$('body').scrollspy({
+				target: selector,
+				offset: offset
+			});
+
+			toggleElement.on('click', function () {
+				if (toggler.css('display') !== 'none') {
+					toggler.click();
 				}
 			});
 
@@ -1649,18 +1773,20 @@
 
 		// doClick
 		VanillePlugin.doClick = function () {
+
 			$('[data-target]').on('click', function (e) {
 
 				e.preventDefault();
 
-				const menu = $('.navbar-toggler');
-				if (!menu.hasClass('collapsed')) {
-					menu.trigger('click');
+				const toggler = $('.navbar-toggler');
+				if (!toggler.hasClass('collapsed')) {
+					toggler.trigger('click');
 				}
 
 				const element = $(this);
 				const link = element.attr('data-target');
 				if (!link) return;
+
 				const blank = element.attr('data-new') == 'true' ? true : false;
 				const space = 30;
 
@@ -1689,11 +1815,44 @@
 			});
 		}
 
+		// getBaseUrl
+		VanillePlugin.getBaseUrl = function (url, trailing = false) {
+			let getBaseUrl = plugin.baseUrl || '';
+			if (typeof url == 'string') {
+				getBaseUrl = `${getBaseUrl}/${url}`;
+			}
+			if (trailing === true) {
+				getBaseUrl = `${getBaseUrl}/`;
+			}
+			return self.formatUrl(getBaseUrl, trailing);
+		}
+
+		// setDefaultImage
+		VanillePlugin.setDefaultImage = function (img) {
+			img = img || `${plugin.assetUrl}/img/default.jpg`;
+			const src = self.getBaseUrl(img);
+			$('img').on('error', function () {
+				$(this).off('error').attr('src', src);
+			});
+		}
+
+		// doLog
+		VanillePlugin.doLog = function (data) {
+			if (self.isDebug()) {
+				console.log(data);
+			}
+		}
+
+		// isDebug
+		VanillePlugin.isDebug = function () {
+			return plugin.debug === true;
+		}
+
 		// getString
 		VanillePlugin.getString = function (item) {
 			const strings = plugin.strings;
 			if (item !== undefined) {
-				return strings[item] ?? strings;
+				return strings[item] ?? null;
 			}
 			return strings;
 		}
@@ -1702,7 +1861,7 @@
 		VanillePlugin.getLinking = function (item) {
 			const urls = plugin.urls;
 			if (item !== undefined) {
-				return urls[item] ?? urls;
+				return urls[item] ?? null;
 			}
 			return urls;
 		}
@@ -1711,20 +1870,154 @@
 		VanillePlugin.goTo = function (url, blank) {
 			blank = blank || false;
 			url = url || '/';
-			if (blank) {
+			if (blank === true) {
 				window.open(link, '_blank');
 				return;
 			}
 			window.location.href = url;
 		}
 
-		// baseUrl
-		VanillePlugin.baseUrl = function (url) {
-			const baseUrl = window.location.protocol + '//' + window.location.host + '/';
-			if (item !== undefined) {
-				return baseUrl + url + '/'
+		// getCurrentUrl
+		VanillePlugin.getCurrentUrl = function (url, trailing = false) {
+			const protocol = window.location.protocol;
+			const host = window.location.host;
+			let currentUrl = `${protocol}//${host}`;
+			if (typeof url == 'string') {
+				currentUrl = `${currentUrl}/${url}`;
 			}
-			return baseUrl;
+			if (trailing === true) {
+				currentUrl = `${currentUrl}/`;
+			}
+			return self.formatUrl(currentUrl, trailing);
+		}
+
+		// formatUrl
+		VanillePlugin.formatUrl = function (url, trailing = false) {
+			if (typeof url == 'string') {
+				url = url.replace(/\\/g, '/');
+				url = url.replace(/([^:]\/)\/+/g, '$1');
+				url = url.replace(/^\/{2,}/, '/');
+				if (trailing !== true) {
+					url = url.replace(/\/+$/, '');
+				}
+			}
+			return url;
+		}
+
+		// toDate
+		VanillePlugin.toDate = function (string) {
+
+			const from = string.split('/');
+			const to = new Date(from[2], from[1] - 1, from[0]);
+
+			const d = ('0' + to.getDate()).slice(-2);
+			const m = ('0' + (to.getMonth() + 1)).slice(-2);
+			const y = to.getFullYear();
+
+			return `${y}-${m}-${d}`;
+
+		}
+
+		// isValidUrl
+		VanillePlugin.isValidUrl = function (url) {
+			const pattern = /^(https?:)?\/\//i;
+			return pattern.test(url);
+		}
+
+		// isProtocol
+		VanillePlugin.isProtocol = function (url, protocol) {
+			for (let i = 0; i < protocol.length; i++) {
+				if (url.indexOf(protocol[i] + ':') !== -1) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// isForm
+		VanillePlugin.isForm = function (form) {
+			return form?.prop('tagName') === 'FORM';
+		}
+
+		// capitalize
+		VanillePlugin.capitalize = function (string) {
+			return string.charAt(0).toUpperCase() + string.slice(1);
+		}
+
+		// toBool
+		VanillePlugin.toBool = function (val) {
+			return "bool|" + (val ? 1 : 0);
+		}
+
+		// toInt
+		VanillePlugin.toInt = function (val) {
+			return "int|" + parseInt(val);
+		}
+
+		// toFloat
+		VanillePlugin.toFloat = function (val) {
+			return "float|" + parseFloat(val);
+		}
+
+		// toStr
+		VanillePlugin.toStr = function (val) {
+			if (val === undefined || val === null) {
+				val = '';
+			}
+			return val.toString();
+		}
+
+		// parseObject
+		VanillePlugin.parseObject = function (obj) {
+			let data = {};
+			if (typeof obj === 'object') {
+				$.each(obj, (item, i) => {
+					const key = Object.keys(item)[0];
+					data[key] = item[key];
+				});
+			}
+			return data;
+		}
+
+		// toObject
+		VanillePlugin.toObject = function (data) {
+			if (Array.isArray(data)) {
+				return data.reduce((obj, item) => {
+					obj[item.name] = item.value;
+					return obj;
+				}, {});
+			}
+			return {};
+		}
+
+		// isEmpty
+		VanillePlugin.isEmpty = function (item) {
+			if (typeof item === 'object') {
+				return (Object.values(item).length === 0);
+			}
+			if (typeof item === 'array') {
+				return (item.length === 0);
+			}
+			return (item === '');
+		}
+
+		// splitString
+		VanillePlugin.splitString = function (string, max, end) {
+			if (!typeof string === 'string') {
+				return string;
+			}
+			end = end || '...';
+			max = max || 0;
+			const split = string.substring(0, max) + add;
+			return (string.length > max) ? split : string
+		}
+
+		// stripString
+		VanillePlugin.stripString = function (string) {
+			if (!typeof string === 'string') {
+				return string;
+			}
+			return string.replace(/<\/?[^>]+(>|$)/g, '');
 		}
 
 		// Return object
