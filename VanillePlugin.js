@@ -48,7 +48,7 @@
 		self.reloading = false;
 
 		// Overrided plugin
-		if (!plugin.overrided) {
+		if (!plugin?.overrided) {
 			plugin = self.override(plugin);
 		}
 
@@ -96,9 +96,15 @@
 		// Custom Ajax request
 		VanillePlugin.doAjax = function (element, args) {
 
-			// Set element
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
 			const type = element?.prop('tagName');
-			if (!type) return;
+			if (!type) {
+				self.doLog('Missing element (ajax)');
+				return;
+			}
 
 			// Extend args
 			args = $.extend({
@@ -124,7 +130,7 @@
 						|| element.data('action');
 
 				} else {
-					action = element.data('action');
+					action = element.attr('data-action');
 				}
 			}
 
@@ -143,8 +149,8 @@
 
 				} else {
 					const parent = element.parent('div');
-					token = parent.find('[data-token]').data('token')
-						|| element.data('token');
+					token = parent.find('[data-token]').attr('data-token')
+						|| element.attr('data-token');
 				}
 			}
 
@@ -200,7 +206,7 @@
 			}, args);
 
 			// Set files data
-			if (args.files) {
+			if (args.files.length) {
 
 				const files = args.files;
 
@@ -238,12 +244,18 @@
 			}
 		};
 
-		// Custom fetch API request
+		// Custom Fetch API request
 		VanillePlugin.doFetch = function (element, args) {
 
-			// Set element
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
 			const type = element?.prop('tagName');
-			if (!type) return;
+			if (!type) {
+				self.doLog('Missing element (fetch)');
+				return;
+			}
 
 			// Extend args
 			args = $.extend({
@@ -271,7 +283,7 @@
 						|| element.data('action');
 
 				} else {
-					action = element.data('action');
+					action = element.attr('data-action');
 				}
 			}
 
@@ -283,12 +295,12 @@
 			if (!token) {
 				if (type == 'FORM') {
 					token = element.find('input[name="token"]').val()
-						|| element.data('token');
+						|| element.attr('data-token');
 
 				} else {
 					const parent = element.parent('div');
-					token = parent.find('[data-token]').data('token')
-						|| element.data('token');
+					token = parent.find('[data-token]').attr('data-token')
+						|| element.attr('data-token');
 				}
 			}
 
@@ -440,19 +452,37 @@
 
 		// isLoading
 		VanillePlugin.isLoading = function (element) {
+
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
 			const type = element?.prop('tagName');
-			if (!type) return;
+			if (!type) {
+				self.doLog('Missing element (isLoading)');
+				return;
+			}
+
 			if (type == 'FORM') {
 				return element.find('[type="submit"]').hasClass('icon-loading');
 			}
+
 			return element.hasClass('icon-loading');
+
 		}
 
 		// unloading
 		VanillePlugin.unloading = function (element) {
 
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
 			const type = element?.prop('tagName');
-			if (!type) return;
+			if (!type) {
+				self.doLog('Missing element (unloading)');
+				return;
+			}
 
 			if (type == 'FORM') {
 				const button = element.find('[type="submit"]');
@@ -470,8 +500,15 @@
 		// loading
 		VanillePlugin.loading = function (element) {
 
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
 			const type = element?.prop('tagName');
-			if (!type) return;
+			if (!type) {
+				self.doLog('Missing element (loading)');
+				return;
+			}
 
 			if (type == 'FORM') {
 				const button = element.find('[type="submit"]');
@@ -854,7 +891,7 @@
 
 		// Redirect
 		VanillePlugin.redirect = function (url, time) {
-			if (typeof url === 'string') {
+			if (typeof url == 'string') {
 				time = time || 1000;
 				self.wait(() => {
 					self.goTo(url);
@@ -865,9 +902,20 @@
 		// activate
 		VanillePlugin.activate = function (form) {
 
+			if (typeof form == 'string') {
+				form = $(form);
+			}
+
+			form = form || $('form[name="activate"]');
+			if (!self.isForm(form)) {
+				self.doLog('Missing form (activate)');
+				return;
+			}
+
 			form.on('submit', function (e) {
 
 				e.preventDefault();
+				const form = $(this);
 				if (self.isLoading(form)) return;
 
 				self.doAjax(form, {
@@ -908,9 +956,20 @@
 		// register
 		VanillePlugin.register = function (form) {
 
+			if (typeof form == 'string') {
+				form = $(form);
+			}
+
+			form = form || $('form[name="register"]');
+			if (!self.isForm(form)) {
+				self.doLog('Missing form (register)');
+				return;
+			}
+
 			form.on('submit', function (e) {
 
 				e.preventDefault();
+				const form = $(this);
 				if (self.isLoading(form)) return;
 
 				const files = self.parseFiles(form);
@@ -932,27 +991,46 @@
 		}
 
 		// unregister
-		VanillePlugin.unregister = function (selector) {
-			const element = $(selector);
+		VanillePlugin.unregister = function (element) {
+
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
+			if (!element.length) {
+				self.doLog('Missing element (unregister)');
+				return;
+			}
+
 			element.on('click', function (e) {
+
 				e.preventDefault();
-				if (self.isLoading(element)) return;
-				self.doAjax(element);
+				const el = $(this);
+				if (self.isLoading(el)) return;
+
+				(plugin.restful == true)
+					? self.doFetch(el)
+					: self.doAjax(el);
 			});
 		}
 
 		// saveSettings
 		VanillePlugin.saveSettings = function (form) {
 
+			if (typeof form == 'string') {
+				form = $(form);
+			}
+
 			form = form || $('form[name="settings"]');
-			if (!form.length || !self.isForm(form)) {
-				self.doLog('Missing settings form');
+			if (!self.isForm(form)) {
+				self.doLog('Missing form (settings)');
 				return;
 			}
 
 			form.on('submit', function (e) {
 
 				e.preventDefault();
+				const form = $(this);
 				if (self.isLoading(form)) return;
 
 				const args = {
@@ -973,7 +1051,12 @@
 		// purgeCache
 		VanillePlugin.purgeCache = function (element) {
 
-			if (!element.length) {
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
+			element = element || $('[data-name="purge-cache"]');
+			if (!element?.length) {
 				self.doLog('Missing element (purge cache)');
 				return;
 			}
@@ -981,18 +1064,30 @@
 			element.on('click', function (e) {
 
 				e.preventDefault();
-				if (self.isLoading(element)) return;
+				const el = $(this);
+				if (self.isLoading(el)) return;
 
-				if (plugin.restful == true) {
-					self.doFetch(element, {
-						'method': 'DELETE'
-					});
+				self.confirm({
+					confirmCb: function () {
 
-				} else {
-					self.doAjax(element, {
-						'method': 'DELETE'
-					});
-				}
+						const action = el.attr('data-action')
+							|| '/admin/cache/';
+
+						const method = el.attr('data-method')
+							|| 'DELETE';
+
+						const data = { '--token': plugin.token };
+						const url = self.getBaseUrl(action, true);
+						const timeout = plugin.timeout * 10;
+						const args = { url: url, type: method, timeout: timeout, data: data };
+
+						(plugin.restful == true)
+							? self.doFetch(el, args)
+							: self.doAjax(el, args);
+
+					}
+
+				});
 
 			});
 
@@ -1001,9 +1096,9 @@
 		// update
 		VanillePlugin.update = function () {
 
-			const page = $('body').data('page') || null;
+			const page = $('body').attr('data-page') || null;
 			if (!page) {
-				self.doLog(`Page '${page}' not found, Nothing to update`);
+				self.doLog(`Page not found, Nothing to update`);
 				return;
 			}
 
@@ -1016,7 +1111,6 @@
 			form.on('submit', function (e) {
 
 				e.preventDefault();
-
 				const form = $(this);
 				if (self.isLoading(form)) return;
 
@@ -1036,7 +1130,8 @@
 						data = self.toObject(data);
 
 						const url = self.getBaseUrl(action, true);
-						const args = { url: url, type: method, data: data };
+						const timeout = plugin.timeout * 10;
+						const args = { url: url, type: method, data: data, timeout: timeout };
 
 						(plugin.restful == true)
 							? self.doFetch(form, args)
@@ -1050,19 +1145,22 @@
 		}
 
 		// login
-		VanillePlugin.login = function (selector) {
+		VanillePlugin.login = function (form) {
 
-			selector = selector || 'form[name="login"]';
-			const form = $(selector);
+			if (typeof form == 'string') {
+				form = $(form);
+			}
 
-			if (!form.length || !self.isForm(form)) {
-				self.doLog('Missing login form');
+			form = form || $('form[name="login"]');
+			if (!self.isForm(form)) {
+				self.doLog('Missing form (login)');
 				return;
 			}
 
 			form.on('submit', function (e) {
 
 				e.preventDefault();
+				const form = $(this);
 				if (self.isLoading(form)) return;
 
 				const args = {
@@ -1103,12 +1201,14 @@
 		}
 
 		// logout
-		VanillePlugin.logout = function (selector) {
+		VanillePlugin.logout = function (element) {
 
-			selector = selector || '.logout';
-			const element = $(selector);
+			if (typeof element == 'string') {
+				element = $(element);
+			}
 
-			if (!element.length) {
+			element = element || $('.logout');
+			if (!element?.length) {
 				self.doLog('Missing element (logout)');
 				return;
 			}
@@ -1719,7 +1819,8 @@
 			const accept = strings.accept || 'accept';
 			const decline = strings.decline || 'decline';
 
-			const link = self.getBaseUrl(self.getLinking('privacy'));
+			let link = self.getLinking('privacy');
+			link = self.getBaseUrl(link, true);
 			const close = true;
 			const icon = true;
 
@@ -1757,13 +1858,17 @@
 			output += '</div></div>';
 
 			$('body').append(output);
+
 			const cookieBox = $('.cookie-wrapper');
 			const cookieButtons = $('.cookie-button');
 			cookieBox.addClass('show');
 
-			cookieButtons.on('click', function () {
+			cookieButtons.on('click', function (e) {
+				e.preventDefault();
+
 				cookieBox.removeClass('show');
-				const action = $(this).data('action');
+				const action = $(this).attr('data-action');
+
 				if (action === 'accept') {
 					const days = 30;
 					const expire = 60 * 60 * 24 * days;
@@ -1773,9 +1878,19 @@
 		}
 
 		// click
-		VanillePlugin.click = function () {
+		VanillePlugin.click = function (element) {
 
-			$('[data-target]').on('click', function (e) {
+			if (typeof element == 'string') {
+				element = $(element);
+			}
+
+			element = element || $('[data-target]');
+			if (!element?.length) {
+				self.doLog('Missing element (click)');
+				return;
+			}
+
+			element.on('click', function (e) {
 
 				e.preventDefault();
 
@@ -1784,20 +1899,12 @@
 				if (!link) return;
 
 				const blank = element.attr('data-new') == 'true' ? true : false;
-				const space = 30;
 
 				if (link == 'up') {
-					$('html, body').animate({
-						scrollTop: 0
-					}, 'smooth');
+					self.scrollTo();
 
 				} else if (link.startsWith('#') || link.startsWith('.')) {
-					const tartet = $(link);
-					if (tartet.length) {
-						$('html, body').animate({
-							scrollTop: tartet.offset().top - space
-						}, 'smooth');
-					}
+					self.scrollTo(link);
 
 				} else if (link.startsWith('/')) {
 					self.goTo(self.getBaseUrl());
@@ -1810,6 +1917,58 @@
 				}
 			});
 		}
+
+		// scrollTo
+		VanillePlugin.scrollTo = function (selector) {
+			if (selector === undefined) {
+				$('html, body').animate({
+					scrollTop: 0
+				}, 'smooth');
+			} else {
+				const tartet = $(selector);
+				if (tartet.length) {
+					const space = 30;
+					$('html, body').animate({
+						scrollTop: tartet.offset().top - space
+					}, 'smooth');
+				}
+			}
+		}
+
+		// onVisible
+		VanillePlugin.onVisible = function (selector, callback, threshold = 0.5) {
+
+			if (!selector || typeof callback !== "function") {
+				self.doLog('Selector & callback required');
+				return;
+			}
+
+			const element = document.querySelector(selector);
+			if (!element) {
+				return;
+			}
+
+			self.doLog(`Observing element: ${selector}`);
+
+			// Set up the Intersection Observer
+			const observer = new IntersectionObserver(
+				(entries, observer) => {
+					entries.forEach((entry) => {
+						if (entry.isIntersecting) {
+							console.log(`Element is visible: ${selector}`);
+							callback(entry.target);
+							observer.unobserve(entry.target);
+						}
+					});
+				},
+				{
+					root: null,
+					threshold: threshold,
+				}
+			);
+
+			observer.observe(element);
+		};
 
 		// getBaseUrl
 		VanillePlugin.getBaseUrl = function (url, trailing = false) {
@@ -1932,7 +2091,7 @@
 
 		// isForm
 		VanillePlugin.isForm = function (form) {
-			return form?.prop('tagName') === 'FORM';
+			return form?.length && form?.prop('tagName') === 'FORM';
 		}
 
 		// capitalize
@@ -1999,7 +2158,7 @@
 
 		// splitString
 		VanillePlugin.splitString = function (string, max, end) {
-			if (!typeof string === 'string') {
+			if (!typeof string == 'string') {
 				return string;
 			}
 			end = end || '...';
@@ -2010,10 +2169,22 @@
 
 		// stripString
 		VanillePlugin.stripString = function (string) {
-			if (!typeof string === 'string') {
+			if (!typeof string == 'string') {
 				return string;
 			}
 			return string.replace(/<\/?[^>]+(>|$)/g, '');
+		}
+
+		// highlightShortcode
+		VanillePlugin.highlightShortcode = function () {
+			if (self.isDebug()) {
+				const regex = /(\{[^}]*\}|\[[^\]]*\])/g;
+				const text = document.body.innerHTML;
+				const highlight = text.replace(regex, (match) => {
+					return `<span class="--debug-shortcode">${match}</span>`;
+				});
+				document.body.innerHTML = highlight;
+			}
 		}
 
 		// Return object
