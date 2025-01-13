@@ -1955,7 +1955,7 @@
 				(entries, observer) => {
 					entries.forEach((entry) => {
 						if (entry.isIntersecting) {
-							console.log(`Element is visible: ${selector}`);
+							self.doLog(`Element is visible: ${selector}`);
 							callback(entry.target);
 							observer.unobserve(entry.target);
 						}
