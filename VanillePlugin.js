@@ -1898,7 +1898,11 @@
 				const link = element.attr('data-target');
 				if (!link) return;
 
-				const blank = element.attr('data-new') == 'true' ? true : false;
+				let blank = element.attr('data-new') == 'true' ? true : false;
+				const domain = window.location.hostname;
+				if (!link.includes(domain)) {
+					blank = true;
+				}
 
 				if (link == 'up') {
 					self.scrollTo();
@@ -1909,12 +1913,10 @@
 				} else if (link.startsWith('/')) {
 					self.goTo(self.getBaseUrl());
 
-				} else if (link.startsWith('http') && blank) {
-					self.goTo(link, true);
-
 				} else if (link.startsWith('http')) {
-					self.goTo(link);
+					self.goTo(link, blank);
 				}
+
 			});
 		}
 
@@ -2026,7 +2028,7 @@
 			blank = blank || false;
 			url = url || '/';
 			if (blank === true) {
-				window.open(link, '_blank');
+				window.open(url, '_blank');
 				return;
 			}
 			window.location.href = url;
