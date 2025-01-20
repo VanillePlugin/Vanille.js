@@ -1929,7 +1929,8 @@
 			} else {
 				const tartet = $(selector);
 				if (tartet.length) {
-					const space = 30;
+					const nav = $('nav');
+					const space = nav.length ? nav.outerHeight() : 30;
 					$('html, body').animate({
 						scrollTop: tartet.offset().top - space
 					}, 'smooth');
