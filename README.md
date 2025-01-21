@@ -1,2 +1,2 @@
 # Vanille
-Javascript functions (jQuery).
+Javascript Helper Functions (NPM, ESM, jQuery).
