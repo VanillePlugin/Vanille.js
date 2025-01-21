@@ -3,7 +3,6 @@ node_modules/
 bower_components/
 
 # Build directories
-dist/
 build/
 
 # Logs
@@ -32,3 +31,4 @@ Thumbs.db
 *.bak
 *.swp
 *.lock
+*.map
