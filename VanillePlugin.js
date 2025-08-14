@@ -686,10 +686,10 @@
 			};
 
 			const strings = self.getString();
-			const message = args.message || strings.confirm || '';
-			const title = strings.confirmation || 'confirmation';
-			const yes = strings.yes || 'yes';
-			const cancel = strings.cancel || 'cancel';
+			const message = args.message || strings?.confirm || '';
+			const title = strings?.confirmation || 'confirmation';
+			const yes = strings?.yes || 'yes';
+			const cancel = strings?.cancel || 'cancel';
 
 			$.confirm({
 				title: title,
@@ -940,10 +940,10 @@
 					error: function (error) {
 
 						const strings = self.getString('activation');
-						const title = strings.error || 'activation';
+						const title = strings?.error || 'activation';
 
 						const globalStrings = self.getString('global');
-						const message = globalStrings.error || 'error';
+						const message = globalStrings?.error || 'error';
 
 						self.popupMore(title, message, 'error');
 
@@ -976,7 +976,7 @@
 				if (!files.length) {
 					self.unloading(form);
 					const strings = self.getString('upload');
-					const message = strings.error || 'error';
+					const message = strings?.error || 'error';
 					self.notify(message, 'warning');
 					return;
 				}
@@ -1430,7 +1430,7 @@
 
 				// Check file size
 				if (file.size > args.size) {
-					self.notify(strings.size, 'warning', 0);
+					self.notify(strings?.size, 'warning', 0);
 					input.val('');
 					return;
 				}
@@ -1456,9 +1456,9 @@
 				// Set content
 				parent.addClass('uploaded');
 				if (span.length) {
-					span.text(strings.added);
+					span.text(strings?.added);
 				} else {
-					label.appendChild(`<span>${strings.added}</span>`)
+					label.appendChild(`<span>${strings?.added}</span>`)
 				}
 
 				if (icon.length) {
@@ -1814,10 +1814,10 @@
 
 			const strings = self.getString('cookie');
 			const more = self.getString('more');
-			const title = strings.title || 'title';
-			const message = strings.message || 'message';
-			const accept = strings.accept || 'accept';
-			const decline = strings.decline || 'decline';
+			const title = strings?.title || 'title';
+			const message = strings?.message || 'message';
+			const accept = strings?.accept || 'accept';
+			const decline = strings?.decline || 'decline';
 
 			let link = self.getLinking('privacy');
 			link = self.getBaseUrl(link, true);
@@ -2008,7 +2008,7 @@
 
 		// getString
 		VanillePlugin.getString = function (item) {
-			const strings = plugin.strings;
+			const strings = plugin.strings || {};
 			if (item !== undefined) {
 				return strings[item] ?? null;
 			}
