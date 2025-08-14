@@ -1,31 +1,31 @@
-# Dependency directories
+
 node_modules/
 bower_components/
 
-# Build directories
+
 build/
 
-# Logs
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment files
+
 .env
 .env.*.local
 
-# System files
+
 .DS_Store
 Thumbs.db
 
-# Editor-specific files
+
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Other artifacts
+
 *.log
 *.tmp
 *.bak
